@@ -1,7 +1,6 @@
-numpy
-scikit-learn
-econml
-pandas
-scipy
-typing
-abc
+numpy==1.21.0
+scikit-learn==1.0.2
+econml==0.13.0
+pandas==1.4.2
+scipy==1.8.0
+alive-progress==2.4.1
