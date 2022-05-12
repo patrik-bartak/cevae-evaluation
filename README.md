@@ -1,6 +1,5 @@
 # Evaluation of Honesty property in Causal forests
-This repository is part of the Bachelor's thesis project of Matej Havelka for CSE3000 in Q4 2022. This project studies the effect of honesty 
-on causal forests in different situations and tries to conclude whether using honesty in general cases is beneficial or not. 
+This repository is part of the Bachelor's thesis project of Patrik Bartak for CSE3000 in Q4 2022. It is based on the repository of Matej Havelka.
 To access the bachelors thesis you might require TU Delft login, the paper can be found in the TU Delft repository [TODO: provide link]().
 
 # How to run it
@@ -15,3 +14,4 @@ To add a new generator you need to create a new function in [experiment builder]
 
 # Authors
 Matej Havelka - M.Havelka@student.tudelft.nl
+Patrik Bartak - P.Bartak@student.tudelft.nl
