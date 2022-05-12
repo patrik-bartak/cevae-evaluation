@@ -13,5 +13,5 @@ Afterwards you can construct the experiment with whatever data generators there 
 To add a new generator you need to create a new function in [experiment builder](sample/experiment.py) where you define the necessary functions to generate that data. With that you can add it to any experiment as you would with other generators.
 
 # Authors
-Matej Havelka - M.Havelka@student.tudelft.nl
-Patrik Bartak - P.Bartak@student.tudelft.nl
+- Matej Havelka - M.Havelka@student.tudelft.nl
+- Patrik Bartak - P.Bartak@student.tudelft.nl
