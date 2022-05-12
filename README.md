@@ -1,4 +1,4 @@
-# Evaluation of Honesty property in Causal forests
+# Evaluation of Causal Machine Learning Methods
 This repository is part of the Bachelor's thesis project of Patrik Bartak for CSE3000 in Q4 2022. It is based on the repository of Matej Havelka.
 To access the bachelors thesis you might require TU Delft login, the paper can be found in the TU Delft repository [TODO: provide link]().
 
