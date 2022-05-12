@@ -141,7 +141,7 @@ def basic_session():
 
 def cevae_basic_experiment():
     dimensions = 5
-    sample_size = 20000
+    sample_size = 1000
     Experiment() \
         .add_cevae(dimensions, latent_dim=1, outcome_dist="normal") \
         .add_mean_squared_error() \
