@@ -7,6 +7,7 @@ Currently the following Causal methods can be imported from this file:
 """
 
 import tensorflow as tf
+import torch
 
 from sample.other_methods.dragonnet.experiment.models import regression_loss, binary_classification_loss, \
     treatment_accuracy, track_epsilon
@@ -99,11 +100,11 @@ class CausalEffectVariationalAutoencoder(CausalMethod):
 
     def create_training_truth(self, outcome, main_effect, treatment_effect, treatment_propensity,
                               y0, y1, noise, cate):
-        pass
+        return outcome  # TODO: Check this
 
     def create_testing_truth(self, outcome, main_effect, treatment_effect, treatment_propensity, y0,
                              y1, noise, cate):
-        pass
+        return outcome  # TODO: Check this
 
     def reset(self):
         self.cevae = CEVAE(
@@ -115,15 +116,10 @@ class CausalEffectVariationalAutoencoder(CausalMethod):
     def __str__(self):
         return f'cevae_{self.id}'
 
-    def __init__(
-            self,
-            feature_dim,
-            outcome_dist="bernoulli",
-            latent_dim=20,
-            hidden_dim=200,
-            num_layers=3,
-            num_samples=100,
-            model_id: int = 0):
+    def __init__(self,
+                 feature_dim, outcome_dist, latent_dim,
+                 hidden_dim, num_layers, num_samples,
+                 id: int = 0):
         self.cevae = CEVAE(
             feature_dim, outcome_dist, latent_dim, hidden_dim, num_layers, num_samples
         )
@@ -134,15 +130,19 @@ class CausalEffectVariationalAutoencoder(CausalMethod):
             num_layers=num_layers,
             num_samples=num_samples,
         )
-        self.id = model_id
+        self.id = id
 
     def train(self, x_train, y_train, t_train):
-        self.cevae.fit(x_train, t_train, y_train)
+        x_train_tensor = torch.FloatTensor(x_train.values)
+        y_train_tensor = torch.FloatTensor(y_train.values)
+        t_train_tensor = torch.FloatTensor(t_train.values)
+        self.cevae.fit(x_train_tensor, t_train_tensor, y_train_tensor)
 
     def estimate_causal_effect(self, x_test):
-        ite = self.cevae.ite(x_test)  # individual treatment effect
-        ate = ite.mean()  # average treatment effect
-        return ite, ate
+        x_tensor = torch.FloatTensor(x_test.values)
+        ite = self.cevae.ite(x_tensor)  # individual treatment effect
+        # ate = ite.mean()  # average treatment effect
+        return ite
 
 
 class CausalForest(CausalMethod):

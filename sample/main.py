@@ -14,23 +14,24 @@ from parameterizer import Parameterizer
 def main():
     t = time.time_ns()
     print('STARTING...')
-    parameterize_specific_spiked_sample_size()
-    print(f'FINISHED IN {(time.time_ns() - t) * 10e-9} SECONDS.')
+    cevae_basic_experiment()
+    print(f'FINISHED IN {(time.time_ns() - t) * 1e-9} SECONDS.')
 
 
 def parameterize_sample_size_biased():
     dimensions = 5
-    sample_sizes = [{'sample_size': 50},
-                    {'sample_size': 100},
-                    {'sample_size': 250},
-                    {'sample_size': 500},
-                    {'sample_size': 750},
-                    {'sample_size': 1000},
-                    {'sample_size': 1250},
-                    {'sample_size': 1500},
-                    {'sample_size': 1750},
-                    {'sample_size': 2000}
-                    ]
+    sample_sizes = [
+        {'sample_size': 50},
+        {'sample_size': 100},
+        {'sample_size': 250},
+        {'sample_size': 500},
+        {'sample_size': 750},
+        {'sample_size': 1000},
+        {'sample_size': 1250},
+        {'sample_size': 1500},
+        {'sample_size': 1750},
+        {'sample_size': 2000}
+    ]
     param_function = lambda d: lambda: Experiment() \
         .add_causal_forest(honest=False, min_leaf_size=1, number_of_trees=500) \
         .add_causal_forest(min_leaf_size=1, number_of_trees=500) \
@@ -136,6 +137,16 @@ def basic_session():
     Session(get_experiment, 'basic_session').run_specific(
         pd.DataFrame(np.zeros((40, 5)), columns=[f'feature_{i}' for i in range(dimensions)]),
         pd.DataFrame(np.zeros((40, 1)) + 0.1, columns=['outcome']))
+
+
+def cevae_basic_experiment():
+    dimensions = 5
+    sample_size = 20000
+    Experiment() \
+        .add_cevae(dimensions, latent_dim=1, outcome_dist="normal") \
+        .add_mean_squared_error() \
+        .add_spiked_generator(dimensions, sample_size) \
+        .run(save_data=True, save_graphs=True, show_graphs=True)
 
 
 def basic_experiment():

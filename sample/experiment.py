@@ -145,10 +145,30 @@ class Experiment:
     # MODELS
 
     def add_causal_forest(self, number_of_trees=100, min_leaf_size=10, honest: bool=True):
-        return self.add_custom_model(CausalForest(number_of_trees, k=min_leaf_size, honest=honest, id = len(self.models)))
+        return self.add_custom_model(CausalForest(number_of_trees, k=min_leaf_size, honest=honest, id=len(self.models)))
 
     def add_dragonnet(self, dimensions):
-        return self.add_custom_model(DragonNet(dimensions, id = len(self.models)))
+        return self.add_custom_model(DragonNet(dimensions, id=len(self.models)))
+
+    def add_cevae(self,
+                  dimensions,
+                  outcome_dist="bernoulli",
+                  latent_dim=20,
+                  hidden_dim=200,
+                  num_layers=3,
+                  num_samples=100,
+    ):
+        return self.add_custom_model(
+            CausalEffectVariationalAutoencoder(
+                dimensions,
+                outcome_dist,
+                latent_dim,
+                hidden_dim,
+                num_layers,
+                num_samples,
+                id=len(self.models)
+            )
+        )
 
     # METRICS
 

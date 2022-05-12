@@ -109,8 +109,10 @@ def run_model(model: CausalMethod, score_functions: List[Callable[[List[float], 
     if save_table:
         select_features(X_test).to_csv(dir + f'/testing_set_{model}.csv')
         y_test.to_csv(dir + f'/base_truth_for_testing_set_{model}.csv')
-        save_pandas_table(dir + f'/table_predictions_{model}', pd.DataFrame(results, columns=[f'prediction_{i}' for i in
-                                                                                              range(results.shape[
-                                                                                                        1])] if len(
-            results.shape) > 1 else ['prediction']))
+        save_pandas_table(dir + f'/table_predictions_{model}', pd.DataFrame(
+            results,
+            columns=[
+                f'prediction_{i}' for i in range(results.shape[1])
+            ] if len(results.shape) > 1 else ['prediction']
+        ))
     return [score_function(y_test.to_numpy(), results) for score_function in score_functions]
