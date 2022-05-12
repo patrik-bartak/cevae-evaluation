@@ -11,6 +11,8 @@ import tensorflow as tf
 from sample.other_methods.dragonnet.experiment.models import regression_loss, binary_classification_loss, \
     treatment_accuracy, track_epsilon
 
+from pyro.contrib.cevae import CEVAE
+
 tf.compat.v1.disable_eager_execution()
 from econml.dml import CausalForestDML as EconCausalForest
 from abc import abstractmethod, ABC
@@ -91,6 +93,29 @@ class CausalMethod(ABC):
         :return: string representing the model
         """
         pass
+
+
+class CausalEffectVariationalAutoencoder(CausalMethod):
+
+    def __init__(
+            self,
+            feature_dim,
+            outcome_dist="bernoulli",
+            latent_dim=20,
+            hidden_dim=200,
+            num_layers=3,
+            num_samples=100,):
+        self.cevae = CEVAE(
+            feature_dim, outcome_dist, latent_dim, hidden_dim, num_layers, num_samples
+        )
+
+    def train(self, x_train, y_train, t_train):
+        self.cevae.fit(x_train, t_train, y_train)
+
+    def estimate_causal_effect(self, x_test):
+        ite = self.cevae.ite(x_test)  # individual treatment effect
+        ate = ite.mean()  # average treatment effect
+        return ite, ate
 
 
 class CausalForest(CausalMethod):
