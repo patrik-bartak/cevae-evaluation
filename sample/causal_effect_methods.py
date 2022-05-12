@@ -97,6 +97,24 @@ class CausalMethod(ABC):
 
 class CausalEffectVariationalAutoencoder(CausalMethod):
 
+    def create_training_truth(self, outcome, main_effect, treatment_effect, treatment_propensity,
+                              y0, y1, noise, cate):
+        pass
+
+    def create_testing_truth(self, outcome, main_effect, treatment_effect, treatment_propensity, y0,
+                             y1, noise, cate):
+        pass
+
+    def reset(self):
+        self.cevae = CEVAE(
+            self.config["feature_dim"], self.config["outcome_dist"],
+            self.config["latent_dim"], self.config["hidden_dim"],
+            self.config["num_layers"], self.config["num_samples"]
+        )
+
+    def __str__(self):
+        return f'cevae_{self.id}'
+
     def __init__(
             self,
             feature_dim,
@@ -104,10 +122,19 @@ class CausalEffectVariationalAutoencoder(CausalMethod):
             latent_dim=20,
             hidden_dim=200,
             num_layers=3,
-            num_samples=100,):
+            num_samples=100,
+            model_id: int = 0):
         self.cevae = CEVAE(
             feature_dim, outcome_dist, latent_dim, hidden_dim, num_layers, num_samples
         )
+        self.config = dict(
+            feature_dim=feature_dim,
+            latent_dim=latent_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            num_samples=num_samples,
+        )
+        self.id = model_id
 
     def train(self, x_train, y_train, t_train):
         self.cevae.fit(x_train, t_train, y_train)
@@ -148,6 +175,7 @@ class CausalForest(CausalMethod):
 
     def __str__(self):
         return f'causal_forest_{self.id}'
+
 
 class DragonNet(CausalMethod):
 
