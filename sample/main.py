@@ -151,14 +151,12 @@ def cevae_basic_experiment():
 
 def basic_experiment():
     dimensions = 5
-    sample_size = 1000
+    sample_size = 50
     Experiment() \
         .add_causal_forest(honest=False, min_leaf_size=1, number_of_trees=500) \
         .add_causal_forest(min_leaf_size=1, number_of_trees=500) \
         .add_mean_squared_error() \
         .add_biased_generator(dimensions=dimensions, sample_size=sample_size) \
-        .add_all_effects_generator(dimensions=dimensions, sample_size=sample_size) \
-        .add_no_treatment_effect_generator(dimensions=dimensions, sample_size=sample_size) \
         .run(save_data=True, save_graphs=True, show_graphs=False)
 
 
