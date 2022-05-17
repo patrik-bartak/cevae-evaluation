@@ -14,7 +14,7 @@ from parameterizer import Parameterizer
 def main():
     t = time.time_ns()
     print('STARTING...')
-    cevae_basic_experiment()
+    cevae_proxy_experiment()
     print(f'FINISHED IN {(time.time_ns() - t) * 1e-9} SECONDS.')
 
 
@@ -146,7 +146,19 @@ def cevae_basic_experiment():
         .add_cevae(dimensions, latent_dim=1, outcome_dist="normal") \
         .add_mean_squared_error() \
         .add_spiked_generator(dimensions, sample_size) \
-        .run(save_data=True, save_graphs=True, show_graphs=True)
+        .run(save_data=True, save_graphs=True, show_graphs=False)
+
+
+def cevae_proxy_experiment():
+    data_dimensions = 5
+    model_dimensions = 5
+    sample_size = 1000
+    Experiment() \
+        .add_causal_forest(min_leaf_size=1, number_of_trees=500) \
+        .add_cevae(model_dimensions, latent_dim=10, outcome_dist="normal") \
+        .add_all_metrics() \
+        .add_noisy_spiked_proxy_generator(data_dimensions, sample_size) \
+        .run(save_data=True, save_graphs=True, show_graphs=False)
 
 
 def basic_experiment():
@@ -157,7 +169,7 @@ def basic_experiment():
         .add_causal_forest(min_leaf_size=1, number_of_trees=500) \
         .add_mean_squared_error() \
         .add_biased_generator(dimensions=dimensions, sample_size=sample_size) \
-        .run(save_data=True, save_graphs=True, show_graphs=False)
+        .run(save_data=True, save_graphs=True, show_graphs=True)
 
 
 def spiked_experiment():

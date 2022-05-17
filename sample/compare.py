@@ -13,13 +13,13 @@ functions and classes:
 from causal_effect_methods import *
 from data_generator import *
 from sklearn.model_selection import train_test_split
-from utils import save_pandas_table, generate_coverage_of_model_graph
+from utils import save_pandas_table
 
 
 def run(methods: Dict[str, CausalMethod],
         score_functions: Dict[str, Callable[[List[float], List[float]], float]],
         data_generator: Generator = None, data_file: str = None, samples: int = 500, save_table: bool = False,
-        dir: str = ''):
+        dir: str = '', show_graphs=False, save_graphs=False):
     """
     Method that runs input models and measures some metrics. It outputs a dataframe containing the results.
     If a data generator is defined, the method will use the generator. Make sure only generator OR data file is defined.
@@ -36,23 +36,45 @@ def run(methods: Dict[str, CausalMethod],
     scoring_list = [score_functions[key] for key in score_functions]
     columns = [key for key in score_functions.keys()]
     columns.insert(0, 'method_name')
-    X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = None, None, None, None, None,\
-                                                                         None, None, None, None, None
+    # X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = None, None, None, None, None,\
+    #                                                                      None, None, None, None, None
     if data_generator is not None:
-        X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = load_data_from_generator(data_generator,
-                                                                                                      samples)
+        generated_data = load_data_from_generator(data_generator, samples)
+        if len(generated_data) == 10:
+            X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = generated_data
+        else:
+            X, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = generated_data
+
     elif data_file is not None:
-        X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = load_data_from_file(data_file)
+        loaded_data = load_data_from_file(data_file)
+        if len(loaded_data) == 10:
+            print("Using non-proxy data")
+            X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = loaded_data
+        else:
+            print("Using proxy data")
+            X, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate = loaded_data
+
     df = pd.DataFrame([], columns=columns)
-    all_data = X.join([W, y, main_effect, true_effect, propensity, y0, y1, noise, cate])
+    all_data = X.join(proxies).join([W, y, main_effect, true_effect, propensity, y0, y1, noise, cate])
     for method in methods:
         model = methods[method]
-        results = run_model(model, scoring_list, X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
+        # results = run_model(model, scoring_list, X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
+        #                     save_table=save_table, dir=dir)
+        results = run_model(model, scoring_list, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
                             save_table=save_table, dir=dir)
         results.insert(0, method)
         df.loc[len(df.index)] = results
-        if save_table:
-            generate_coverage_of_model_graph(model, all_data, dir + f'/model_coverage_{model}.png')
+        if show_graphs or save_graphs:
+            grapher = Grapher(dir, show_graphs, save_graphs)
+            inferred_treatment_effect = pd.DataFrame(data=model.estimate_causal_effect(select_proxies(all_data)))
+
+            fn = f'/{model}_estimation_feat0'
+            grapher.scatter_2d(fn, all_data['feature_0'], inferred_treatment_effect,
+                               "Feature 0", "Estimated Treatment Effect")
+            fn = f'/{model}_estimation_2d_feat01'
+            grapher.scatter_2d_color(fn, all_data['feature_0'], all_data['feature_1'], inferred_treatment_effect,
+                                     "Feature 0", "Feature 1", "Estimated Treatment Effect Strength")
+
     df = df.set_index('method_name')
     if save_table:
         save_pandas_table(dir + '/inter_table', df)
@@ -98,16 +120,18 @@ def run_model(model: CausalMethod, score_functions: List[Callable[[List[float], 
                                                                                     y0, y1, noise, cate),
                                                         test_size=0.25, random_state=42)
     # Select only features for training
-    model.train(select_features(X_train), y_train, X_train['treatment'])
+    # model.train(select_features(X_train), y_train, X_train['treatment'])
+    model.train(select_proxies(X_train), y_train, X_train['treatment'])
 
     # Overwrite y_test based on the model prediction expectation
     y_test = model.create_testing_truth(X_test['outcome'], X_test['main_effect'], X_test['treatment_effect'],
                                         X_test['propensity'], X_test['y0'], X_test['y1'], X_test['noise'], X_test['cate'])
 
     # Select only features for testing
-    results = model.estimate_causal_effect(select_features(X_test))
+    # results = model.estimate_causal_effect(select_features(X_test))
+    results = model.estimate_causal_effect(select_proxies(X_test))
     if save_table:
-        select_features(X_test).to_csv(dir + f'/testing_set_{model}.csv')
+        select_proxies(X_test).to_csv(dir + f'/testing_set_{model}.csv')
         y_test.to_csv(dir + f'/base_truth_for_testing_set_{model}.csv')
         save_pandas_table(dir + f'/table_predictions_{model}', pd.DataFrame(
             results,

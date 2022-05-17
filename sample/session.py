@@ -68,4 +68,3 @@ class Session:
         results = pd.DataFrame(results, columns=metric_names, index=model_names)
         save_pandas_table(self.directory + '/results', results)
         return results
-

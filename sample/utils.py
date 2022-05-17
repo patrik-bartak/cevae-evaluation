@@ -16,8 +16,8 @@ import sys
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from pandas.plotting import table
 from typing import *
 
 
@@ -37,11 +37,16 @@ class HiddenPrints:
 
 def save_pandas_table(dir: str, df: pd.DataFrame):
     plt.clf()
-    ax = plt.subplot(111, frame_on=False)
-    ax.xaxis.set_visible(False)
-    ax.yaxis.set_visible(False)
-    table(ax, df)
-    plt.savefig(dir)
+    fig, ax = plt.subplots()
+    fig.patch.set_visible(False)
+    ax.axis('off')
+    ax.axis('tight')
+    fig.set_figheight(30)
+    fig.set_figwidth(50)
+    tbl = ax.table(cellText=np.around(df.values, 4), colLabels=df.columns, rowLabels=df.index, loc='center')
+    tbl.set_fontsize(40)
+    tbl.scale(0.4, 8)
+    fig.savefig(dir)
     df.to_csv(dir + '.csv')
 
 
@@ -52,21 +57,15 @@ def compact_dict_print(dict: Dict[str, Any]):
     return result
 
 
-def select_features(df: pd.DataFrame, dim: int=-1):
-    if dim == -1:
-        return df[[name for name in df.columns if 'feature' in name]]
-    return df[[f'feature_{i}' for i in range(dim)]]
+def select_features(df: pd.DataFrame, first_n_dims: int = -1):
+    if first_n_dims == -1:
+        return df[[name for name in df.columns if 'feature' in name and 'proxy' not in name]]
+    else:
+        raise Exception("Not implemented")
 
 
-def generate_coverage_of_model_graph(model, df: pd.DataFrame, save_dir: str):
-    plt.clf()
-    feature_one = df['feature_0']
-    feature_two = df['feature_1']
-    predictions = model.estimate_causal_effect(select_features(df))
-    maximal = df['treatment_effect'].max()
-    minimal = df['treatment_effect'].min()
-    color_function = lambda i: [0,
-                                max(0, min(1, (predictions[i] - minimal) / (maximal - minimal + 0.01))),
-                                max(0, min(1, 1 - (predictions[i] - minimal) / (maximal - minimal + 0.01)))]
-    plt.scatter(feature_one, feature_two, c=[color_function(i) for i in df.index])
-    plt.savefig(save_dir)
+def select_proxies(df: pd.DataFrame, first_n_dims: int = -1):
+    if first_n_dims == -1:
+        return df[[name for name in df.columns if 'proxy' in name]]
+    else:
+        raise Exception("Not implemented")
