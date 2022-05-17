@@ -100,11 +100,11 @@ class CausalEffectVariationalAutoencoder(CausalMethod):
 
     def create_training_truth(self, outcome, main_effect, treatment_effect, treatment_propensity,
                               y0, y1, noise, cate):
-        return outcome  # TODO: Check this
+        return outcome
 
     def create_testing_truth(self, outcome, main_effect, treatment_effect, treatment_propensity, y0,
                              y1, noise, cate):
-        return outcome  # TODO: Check this
+        return treatment_effect
 
     def reset(self):
         self.cevae = CEVAE(
@@ -132,22 +132,33 @@ class CausalEffectVariationalAutoencoder(CausalMethod):
         )
         self.id = id
 
-    def train(self, x_train, y_train, t_train):
+    def train(self, x_train, y_train, t_train,
+              num_epochs=100,
+              batch_size=100,
+              learning_rate=1e-3,
+              learning_rate_decay=0.1,
+              weight_decay=1e-4,
+              log_every=100):
         x_train_tensor = torch.FloatTensor(x_train.values)
         y_train_tensor = torch.FloatTensor(y_train.values)
         t_train_tensor = torch.FloatTensor(t_train.values)
-        self.cevae.fit(x_train_tensor, t_train_tensor, y_train_tensor)
+        print("X tensor size:", x_train_tensor.size())
+        print("y tensor size:", y_train_tensor.size())
+        print("t tensor size:", t_train_tensor.size())
+        self.cevae.fit(x_train_tensor, t_train_tensor, y_train_tensor,
+                       num_epochs, batch_size, learning_rate,
+                       learning_rate_decay, weight_decay, log_every)
 
     def estimate_causal_effect(self, x_test):
         x_tensor = torch.FloatTensor(x_test.values)
         ite = self.cevae.ite(x_tensor)  # individual treatment effect
         # ate = ite.mean()  # average treatment effect
-        return ite
+        return ite.numpy()
 
 
 class CausalForest(CausalMethod):
 
-    def __init__(self, number_of_trees, method_effect='auto', method_predict='auto', k=1, honest:bool = True, id: int = 0):
+    def __init__(self, number_of_trees, method_effect='auto', method_predict='auto', k=1, honest: bool = True, id: int = 0):
         self.forest = EconCausalForest(model_t=method_effect, model_y=method_predict, n_estimators=number_of_trees,
                                        min_samples_leaf=k, criterion='mse', random_state=42, honest=honest)
         self.id = id
@@ -240,5 +251,3 @@ class DragonNet(CausalMethod):
 
     def __str__(self):
         return f'dragonnet_{self.id}'
-
-
