@@ -1,8 +1,8 @@
-from sample.main import main
+import main
 
 if __name__ == '__main__':
-    main()
+    main.main()
 
 
 def run():
-    main()
+    main.main()
