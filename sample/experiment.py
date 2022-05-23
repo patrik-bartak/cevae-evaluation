@@ -102,7 +102,7 @@ class Experiment:
             result = run(model_dictionary, metric_dictionary,
                          data_file=generator.directory + generator.generated_files['data'][-1],
                          samples=sample_size, save_table=save_data,
-                         dir=generator.directory).to_numpy()
+                         dir=generator.directory, show_graphs=show_graphs, save_graphs=save_graphs).to_numpy()
             results = results + result
 
         results = results / len(self.generators)
@@ -176,15 +176,35 @@ class Experiment:
 
     # METRICS
 
+    def add_all_metrics(self):
+        return self.add_ate_error()\
+            .add_ate_percent_error()\
+            .add_pehe_mse()\
+            .add_pehe_mae()
+
     def add_mean_squared_error(self):
-        return self.add_custom_metric('mean_squared_error',
-                                      lambda truth, pred: np.sum(
-                                          [(truth[i] - pred[i]) ** 2 for i in range(len(truth))]) / np.prod(truth.shape))
+        return self.add_custom_metric('PEHE (MSE)',
+                                      lambda ite_truth, ite_pred: np.sum(
+                                          [(ite_truth[i] - ite_pred[i]) ** 2 for i in range(len(ite_truth))]) / np.prod(ite_truth.shape))
+
+    def add_pehe_mse(self):
+        return self.add_mean_squared_error()
 
     def add_absolute_error(self):
-        return self.add_custom_metric('absolute_error',
-                                      lambda truth, pred: np.sum(
-                                          [abs(truth[i] - pred[i]) for i in range(len(truth))]) / np.prod(truth.shape))
+        return self.add_custom_metric('PEHE (MAE)',
+                                      lambda ite_truth, ite_pred: np.sum(
+                                          [abs(ite_truth[i] - ite_pred[i]) for i in range(len(ite_truth))]) / np.prod(ite_truth.shape))
+
+    def add_pehe_mae(self):
+        return self.add_absolute_error()
+
+    def add_ate_error(self):
+        return self.add_custom_metric('eATE',
+                                      lambda ite_truth, ite_pred: np.abs(np.mean(ite_truth) - np.mean(ite_pred)))
+
+    def add_ate_percent_error(self):
+        return self.add_custom_metric('eATE (%)',
+                                      lambda ite_truth, ite_pred: np.abs((np.mean(ite_truth) - np.mean(ite_pred)) / np.mean(ite_truth)) * 100)
 
     # DATA GENERATORS
 
@@ -210,14 +230,39 @@ class Experiment:
                                   cate: Callable[[List[float]], float], dimensions: int,
                                   treatment_function: Callable[[float, float], float],
                                   outcome_function: Callable[[float, float, float, float], float],
+                                  proxy_function: Callable[[List[float]], List[List[float]]] = None,
                                   distributions=None, sample_size: int = 500, name: str=None):
         if distributions is None:
             distributions = [np.random.random]
-        generator = data_generator.Generator(main_effect=main_effect, treatment_effect=treatment_effect,
-                                             treatment_propensity=treatment_propensity, noise=noise, cate=cate,
-                                             treatment_function=treatment_function, outcome_function=outcome_function,
-                                             dimensions=dimensions, distributions=distributions, name=name)
+        if proxy_function is None:
+            generator = data_generator.Generator(main_effect=main_effect, treatment_effect=treatment_effect,
+                                                 treatment_propensity=treatment_propensity, noise=noise, cate=cate,
+                                                 treatment_function=treatment_function, outcome_function=outcome_function,
+                                                 dimensions=dimensions, distributions=distributions, name=name)
+        else:
+            generator = data_generator.ProxyGenerator(main_effect=main_effect, treatment_effect=treatment_effect,
+                                                      treatment_propensity=treatment_propensity, proxy_function=proxy_function,
+                                                      noise=noise, cate=cate, treatment_function=treatment_function,
+                                                      outcome_function=outcome_function, dimensions=dimensions,
+                                                      distributions=distributions, name=name)
         return self.add_custom_generator(generator, sample_size=sample_size)
+
+    # def add_custom_generated_proxy_data(self, main_effect: Callable[[List[float]], float],
+    #                               treatment_effect: Callable[[List[float]], float],
+    #                               treatment_propensity: Callable[[List[float]], float],
+    #                               proxy_function: Callable[[List[float]], List[List[float]]],
+    #                               noise: Callable[[], float],
+    #                               cate: Callable[[List[float]], float], dimensions: int,
+    #                               treatment_function: Callable[[float, float], float],
+    #                               outcome_function: Callable[[float, float, float, float], float],
+    #                               distributions=None, sample_size: int = 500, name: str=None):
+    #     if distributions is None:
+    #         distributions = [np.random.random]
+    #     generator = data_generator.ProxyGenerator(main_effect=main_effect, treatment_effect=treatment_effect,
+    #                                          treatment_propensity=treatment_propensity, proxy_function=proxy_function, noise=noise, cate=cate,
+    #                                          treatment_function=treatment_function, outcome_function=outcome_function,
+    #                                          dimensions=dimensions, distributions=distributions, name=name)
+    #     return self.add_custom_generator(generator, sample_size=sample_size)
 
     def add_all_effects_generator(self, dimensions: int, sample_size: int = 500):
         main_effect = self.main_effect
@@ -288,3 +333,92 @@ class Experiment:
         return self.add_custom_generated_data(main_effect, treatment_effect, treatment_propensity, noise, cate,
                                               dimensions, treatment_function, outcome_function,
                                               sample_size=sample_size, name='spiked_generator')
+
+    def add_spiked_proxy_generator(self, dimensions: int, sample_size: int = 500):
+        main_effect = self.main_effect
+        # Spike around (0.5, 0.5) - equally spread through x and y
+        # Very low std means a spike
+        std = 0.01
+        distr = multivariate_normal(cov=np.array([[std, 0], [0, std]]), mean=np.array([0.5, 0.5]),
+                                    seed=42)
+        proxy_function = lambda features: [
+            # [np.random.normal(features[0], 0.1),
+            #  np.random.normal(features[0], 0.1),
+            #  np.random.normal(features[0], 0.1)],
+            [features[0], features[0], features[0]],
+            [features[1]],
+            [features[2]],
+            [features[3]],
+            [features[4]]
+        ]
+        # treatment_effect = lambda x: distr.pdf([x[0], x[1]])
+        # Closer to (0.5, 0.5), higher the chance of being treated
+        # treatment_propensity = lambda x: 1 - np.sqrt((x[0] - 0.5)**2 + (x[1] - 0.5)**2)
+        # noise = lambda: np.random.normal(0, 0.01)
+        # treatment_function = lambda propensity, noise: 1 if np.random.random() <= propensity else 0
+        # outcome_function = lambda main, treat, treat_eff, noise: main + treat * treat_eff + noise
+        # E[Y1 - Y0 | X] = E[Y1 | X] - E[Y0 | X] = 1 * treat_eff = treat_eff(x)
+        # cate = lambda x: treatment_effect(x)
+        std = 0.01
+        # distr = multivariate_normal(cov=np.array([[std, 0], [0, std]]), mean=np.array([0.5, 0.5]),
+        #                             seed=42)
+        treatment_effect = lambda x: x[0] ** 2
+        # Closer to (0.5, 0.5), higher the chance of being treated
+        treatment_propensity = lambda x: 1 - np.sqrt((x[0] - 0.5) ** 2 + (x[1] - 0.5) ** 2)
+        noise = lambda: np.random.normal(0, 0.01)
+        treatment_function = lambda propensity, noise: 1 if np.random.random() <= propensity else 0
+        outcome_function = lambda main, treat, treat_eff, noise: main + treat * treat_eff + noise
+        # E[Y1 - Y0 | X] = E[Y1 | X] - E[Y0 | X] = 1 * treat_eff = treat_eff(x)
+        cate = lambda x: treatment_effect(x)
+        return self.add_custom_generated_proxy_data(main_effect, treatment_effect, treatment_propensity, proxy_function, noise, cate,
+                                              dimensions, treatment_function, outcome_function,
+                                              sample_size=sample_size, name='spiked_proxy_generator')
+
+
+    def add_noisy_spiked_proxy_generator(self, dimensions: int, sample_size: int = 500):
+        main_effect = self.main_effect
+        # Spike around (0.5, 0.5) - equally spread through x and y
+        # Very low std means a spike
+        std = 0.01
+        distr = multivariate_normal(cov=np.array([[std, 0], [0, std]]), mean=np.array([0.5, 0.5]),
+                                    seed=42)
+        proxy_function = lambda features: [
+            [np.random.normal(features[0], 0.3),
+             np.random.normal(features[0], 0.3),
+             np.random.normal(features[0], 0.3)],
+            # [features[0],
+            #  features[0],
+            #  features[0]],
+            #  [features[0]],
+            [np.random.normal(features[1], 0.25),
+             np.random.normal(features[1], 0.25),
+             np.random.normal(features[1], 0.25)],
+            # [features[1]],
+            [features[2]],
+            [features[3]],
+            [features[4]]
+        ]
+        # treatment_effect = lambda x: distr.pdf([x[0], x[1]])
+        # Closer to (0.5, 0.5), higher the chance of being treated
+        # treatment_propensity = lambda x: 1 - np.sqrt((x[0] - 0.5)**2 + (x[1] - 0.5)**2)
+        # noise = lambda: np.random.normal(0, 0.01)
+        # treatment_function = lambda propensity, noise: 1 if np.random.random() <= propensity else 0
+        # outcome_function = lambda main, treat, treat_eff, noise: main + treat * treat_eff + noise
+        # E[Y1 - Y0 | X] = E[Y1 | X] - E[Y0 | X] = 1 * treat_eff = treat_eff(x)
+        # cate = lambda x: treatment_effect(x)
+        std = 0.01
+        # distr = multivariate_normal(cov=np.array([[std, 0], [0, std]]), mean=np.array([0.5, 0.5]),
+        #                             seed=42)
+        treatment_effect = lambda x: x[0] ** 2 + x[1] ** 2
+        # Closer to (0.5, 0.5), higher the chance of being treated
+        treatment_propensity = lambda x: 1 - np.sqrt((x[0] - 0.5) ** 2 + (x[1] - 0.5) ** 2)
+        noise = lambda: np.random.normal(0, 0.01)
+        treatment_function = lambda propensity, noise: 1 if np.random.random() <= propensity else 0
+        import pyro.distributions as dist
+        # outcome_function = lambda main, treat, treat_eff, noise: dist.Bernoulli(logits=main + treat * treat_eff + noise).sample().item()
+        outcome_function = lambda main, treat, treat_eff, noise: main + treat * treat_eff + noise
+        # E[Y1 - Y0 | X] = E[Y1 | X] - E[Y0 | X] = 1 * treat_eff = treat_eff(x)
+        cate = lambda x: 1
+        return self.add_custom_generated_data(main_effect, treatment_effect, treatment_propensity, noise, cate,
+                                              dimensions, treatment_function, outcome_function, proxy_function,
+                                              sample_size=sample_size, name='spiked_proxy_generator')
