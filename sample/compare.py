@@ -9,6 +9,8 @@ functions and classes:
     * run: Method that runs input models and measures some metrics. It outputs a dataframe containing the results.
     * run_model: Method that runs one specific model on the input data and input metrics.
 """
+import numpy as np
+import pandas as pd
 
 from causal_effect_methods import *
 from data_generator import *
@@ -60,14 +62,18 @@ def run(methods: Dict[str, CausalMethod],
         model = methods[method]
         # results = run_model(model, scoring_list, X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
         #                     save_table=save_table, dir=dir)
-        results = run_model(model, scoring_list, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
+        results, losses = run_model(model, scoring_list, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
                             save_table=save_table, dir=dir)
         results.insert(0, method)
         df.loc[len(df.index)] = results
         if show_graphs or save_graphs:
             grapher = Grapher(dir, show_graphs, save_graphs)
-            inferred_treatment_effect = pd.DataFrame(data=model.estimate_causal_effect(select_proxies(all_data)))
 
+            fn = f'/{model}_epoch_loss'
+            grapher.line_2d(fn, pd.DataFrame(data=np.arange(len(losses))), pd.DataFrame(data=losses),
+                            "Epoch", "Loss")
+
+            inferred_treatment_effect = pd.DataFrame(data=model.estimate_causal_effect(select_proxies(all_data)))
             fn = f'/{model}_estimation_feat0'
             grapher.scatter_2d(fn, all_data['feature_0'], inferred_treatment_effect,
                                "Feature 0", "Estimated Treatment Effect")
@@ -121,7 +127,9 @@ def run_model(model: CausalMethod, score_functions: List[Callable[[List[float], 
                                                         test_size=0.25, random_state=42)
     # Select only features for training
     # model.train(select_features(X_train), y_train, X_train['treatment'])
-    model.train(select_proxies(X_train), y_train, X_train['treatment'])
+    losses = model.train(select_proxies(X_train), y_train, X_train['treatment'])
+    if losses is None:
+        losses = []
 
     # Overwrite y_test based on the model prediction expectation
     y_test = model.create_testing_truth(X_test['outcome'], X_test['main_effect'], X_test['treatment_effect'],
@@ -139,4 +147,4 @@ def run_model(model: CausalMethod, score_functions: List[Callable[[List[float], 
                 f'prediction_{i}' for i in range(results.shape[1])
             ] if len(results.shape) > 1 else ['prediction']
         ))
-    return [score_function(y_test.to_numpy(), results) for score_function in score_functions]
+    return [score_function(y_test.to_numpy(), results) for score_function in score_functions], losses

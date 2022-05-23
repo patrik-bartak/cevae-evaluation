@@ -20,7 +20,7 @@ def load_data_from_file(csv_file: str):
     df = pd.read_csv(csv_file)
     proxies = sum([1 for name in df.columns if 'proxy' in name])
     dimensions = sum([1 for name in df.columns if 'feature' in name]) - proxies
-    return data_generator.select_features(df, dimensions), \
-           data_generator.select_proxies(df, dimensions), \
+    return data_generator.select_features(df), \
+           data_generator.select_proxies(df), \
            df['treatment'], df['outcome'], df['main_effect'],\
            df['treatment_effect'], df['propensity'], df['y0'], df['y1'], df['noise'], df['cate']

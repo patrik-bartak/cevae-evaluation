@@ -19,6 +19,16 @@ class Grapher:
         ax.legend()
         self.save_or_show(fig, filename)
 
+    def line_2d(self, filename, x, y, x_label, y_label):
+        fig, ax = plt.subplots()
+        feature_one = x
+        truth = y
+        ax.plot(feature_one, truth)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.legend()
+        self.save_or_show(fig, filename)
+
     def scatter_2d_color(self, filename, x, y, c, x_label, y_label, c_label):
         fig, ax = plt.subplots()
         feature_one = x

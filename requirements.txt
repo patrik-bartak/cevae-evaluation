@@ -6,4 +6,5 @@ scipy~=1.8.0
 tensorflow~=2.8.0
 keras~=2.8.0
 matplotlib~=3.5.2
-pyro-ppl==1.8.1  # CEVAE
+torch~=1.11.0
+pyro-ppl~=1.8.1  # CEVAE

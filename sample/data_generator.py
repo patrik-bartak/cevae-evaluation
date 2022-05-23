@@ -405,7 +405,7 @@ class ProxyGenerator(Generator):
             self.save_data(df)
         if show_graphs or save_graphs:
             self.create_graphs(df, show_graphs, save_graphs)
-        return select_features(df, self.dimensions), select_proxies(df, self.dimensions), df['treatment'], df['outcome'], df['main_effect'], \
+        return select_features(df), select_proxies(df), df['treatment'], df['outcome'], df['main_effect'], \
                df['treatment_effect'], df['propensity'], df['y0'], df['y1'], df['noise'], df['cate']
 
     def generate_row(self):
