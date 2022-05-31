@@ -46,7 +46,7 @@ def save_pandas_table(dir: str, df: pd.DataFrame):
     tbl = ax.table(cellText=np.around(df.values, 4), colLabels=df.columns, rowLabels=df.index, loc='center')
     tbl.set_fontsize(40)
     tbl.scale(0.4, 8)
-    fig.savefig(dir)
+    fig.savefig(dir + '.png')
     df.to_csv(dir + '.csv')
 
 

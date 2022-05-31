@@ -62,24 +62,41 @@ def run(methods: Dict[str, CausalMethod],
         model = methods[method]
         # results = run_model(model, scoring_list, X, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
         #                     save_table=save_table, dir=dir)
-        results, losses = run_model(model, scoring_list, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
+        results, losses_dict = run_model(model, scoring_list, proxies, W, y, main_effect, true_effect, propensity, y0, y1, noise, cate,
                             save_table=save_table, dir=dir)
         results.insert(0, method)
         df.loc[len(df.index)] = results
         if show_graphs or save_graphs:
-            grapher = Grapher(dir, show_graphs, save_graphs)
+            try:
+                grapher = Grapher(dir, show_graphs, save_graphs)
 
-            fn = f'/{model}_epoch_loss'
-            grapher.line_2d(fn, pd.DataFrame(data=np.arange(len(losses))), pd.DataFrame(data=losses),
-                            "Epoch", "Loss")
+                if losses_dict != {}:
+                    fn = f'/{model}'
+                    grapher.plot_losses(fn, losses_dict)
+                np_inf_treat_eff = model.estimate_causal_effect(select_proxies(all_data))
+                inferred_treatment_effect = pd.Series(data=np_inf_treat_eff, index=np.arange(len(np_inf_treat_eff)))
 
-            inferred_treatment_effect = pd.DataFrame(data=model.estimate_causal_effect(select_proxies(all_data)))
-            fn = f'/{model}_estimation_feat0'
-            grapher.scatter_2d(fn, all_data['feature_0'], inferred_treatment_effect,
-                               "Feature 0", "Estimated Treatment Effect")
-            fn = f'/{model}_estimation_2d_feat01'
-            grapher.scatter_2d_color(fn, all_data['feature_0'], all_data['feature_1'], inferred_treatment_effect,
-                                     "Feature 0", "Feature 1", "Estimated Treatment Effect Strength")
+                fn = f'/{model}_scatter_feat0'
+                grapher.pred_actual_scatter(fn, all_data['treatment_effect'], inferred_treatment_effect,
+                                            "Actual ITE", "Predicted ITE")
+                fn = f'/{model}_scatter_t_feat0'
+                grapher.pred_actual_scatter(fn, all_data['treatment_effect'], inferred_treatment_effect,
+                                            "Actual ITE", "Predicted ITE", indicate_treated=all_data['treatment'])
+
+                fn = f'/{model}_estimation_feat0'
+                grapher.scatter_2d(fn, all_data['feature_0'], inferred_treatment_effect,
+                                   "Feature 0", "Estimated Treatment Effect")
+                fn = f'/{model}_estimation_feat1'
+                grapher.scatter_2d(fn, all_data['feature_1'], inferred_treatment_effect,
+                                   "Feature 1", "Estimated Treatment Effect")
+                fn = f'/{model}_estimation_feat2'
+                grapher.scatter_2d(fn, all_data['feature_2'], inferred_treatment_effect,
+                                   "Feature 2", "Estimated Treatment Effect")
+                fn = f'/{model}_estimation_2d_feat01'
+                grapher.scatter_2d_color(fn, all_data['feature_0'], all_data['feature_1'], inferred_treatment_effect,
+                                         "Feature 0", "Feature 1", "Estimated Treatment Effect Strength")
+            except Exception:
+                print(traceback.format_exc())
 
     df = df.set_index('method_name')
     if save_table:
@@ -109,6 +126,7 @@ def run_model(model: CausalMethod, score_functions: List[Callable[[List[float], 
     :param dir: directory where to save table
     :return: list of observed metrics
     """
+    train_test_all_data = False
     all_data = feature_data.join(treatment)
     all_data = all_data.join(outcome)
     all_data = all_data.join(main_effect)
@@ -119,32 +137,59 @@ def run_model(model: CausalMethod, score_functions: List[Callable[[List[float], 
     all_data = all_data.join(noise)
     all_data = all_data.join(cate)
     # Ensure that X_train and X_test hold all values needed
+    pre_split_truth = model.create_training_truth(outcome, main_effect,
+                                                  treatment_effect,
+                                                  treatment_propensity,
+                                                  y0, y1, noise, cate)
     X_train, X_test, y_train, y_test = train_test_split(all_data,
-                                                        model.create_training_truth(outcome, main_effect,
-                                                                                    treatment_effect,
-                                                                                    treatment_propensity,
-                                                                                    y0, y1, noise, cate),
+                                                        pre_split_truth,
                                                         test_size=0.25, random_state=42)
     # Select only features for training
-    # model.train(select_features(X_train), y_train, X_train['treatment'])
-    losses = model.train(select_proxies(X_train), y_train, X_train['treatment'])
-    if losses is None:
-        losses = []
+    if train_test_all_data:
+        model_all_proxies_train = select_proxies(all_data)
+        model_all_y_train = pre_split_truth
+        model_all_t_train = all_data['treatment']
+        model_all_ite_truth = all_data['treatment_effect'].to_numpy()
+        losses_dict = model.train(model_all_proxies_train, model_all_y_train, model_all_t_train,
+                                  x_test=model_all_proxies_train, y_test=model_all_y_train, t_test=model_all_t_train, ite_truth=model_all_ite_truth)
+    else:
+        # model.train(select_features(X_train), y_train, X_train['treatment'])
+        model_proxies_train = select_proxies(X_train)
+        model_y_train = y_train
+        model_t_train = X_train['treatment']
+        model_proxies_test = select_proxies(X_test)
+        model_y_test = y_test
+        model_t_test = X_test['treatment']
+        ite_truth = X_test['treatment_effect'].to_numpy()
+        losses_dict = model.train(model_proxies_train, model_y_train, model_t_train,
+                                  x_test=model_proxies_test, y_test=model_y_test, t_test=model_t_test, ite_truth=ite_truth)
+    if losses_dict is None or len(losses_dict) == 0:
+        losses_dict = {}
 
     # Overwrite y_test based on the model prediction expectation
-    y_test = model.create_testing_truth(X_test['outcome'], X_test['main_effect'], X_test['treatment_effect'],
-                                        X_test['propensity'], X_test['y0'], X_test['y1'], X_test['noise'], X_test['cate'])
+    if train_test_all_data:
+        results_ground_truth = model.create_testing_truth(all_data['outcome'], all_data['main_effect'], all_data['treatment_effect'],
+                                                          all_data['propensity'], all_data['y0'], all_data['y1'], all_data['noise'], all_data['cate'])
+    else:
+        results_ground_truth = model.create_testing_truth(X_test['outcome'], X_test['main_effect'], X_test['treatment_effect'],
+                                                          X_test['propensity'], X_test['y0'], X_test['y1'], X_test['noise'], X_test['cate'])
 
     # Select only features for testing
     # results = model.estimate_causal_effect(select_features(X_test))
-    results = model.estimate_causal_effect(select_proxies(X_test))
+    if train_test_all_data:
+        results = model.estimate_causal_effect(select_proxies(all_data))
+    else:
+        results = model.estimate_causal_effect(select_proxies(X_test))
     if save_table:
-        select_proxies(X_test).to_csv(dir + f'/testing_set_{model}.csv')
-        y_test.to_csv(dir + f'/base_truth_for_testing_set_{model}.csv')
+        if train_test_all_data:
+            select_proxies(all_data).to_csv(dir + f'/testing_set_{model}.csv')
+        else:
+            select_proxies(X_test).to_csv(dir + f'/testing_set_{model}.csv')
+        results_ground_truth.to_csv(dir + f'/base_truth_for_testing_set_{model}.csv')
         save_pandas_table(dir + f'/table_predictions_{model}', pd.DataFrame(
             results,
             columns=[
                 f'prediction_{i}' for i in range(results.shape[1])
             ] if len(results.shape) > 1 else ['prediction']
         ))
-    return [score_function(y_test.to_numpy(), results) for score_function in score_functions], losses
+    return [score_function(results_ground_truth.to_numpy(), results) for score_function in score_functions], losses_dict
