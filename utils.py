@@ -1,15 +1,5 @@
-"""Utils
-
-This file defines some functions useful throughout the entire project that do not fit anywhere else.
-
-This file can also be imported as a module and contains the following
-functions and classes:
-
-    * HiddenPrints - blocks printing
-    * save_pandas_table - function to save a pandas table in a specific directory
-    * compact_dict_print - creates a string defining a dictionary without any illegal characters
-    * select_features - selects only features from a pandas dataframe
-    * generate_coverage_of_model_graph - generates a plot of coverage over first two features based on model outputs
+"""
+This file defines some utility functions useful throughout the entire project.
 """
 
 import sys
@@ -23,7 +13,7 @@ from typing import *
 
 class HiddenPrints:
     """
-    Class to block printing.
+    Blocks printing
     Taken from https://stackoverflow.com/questions/8391411/how-to-block-calls-to-print
     """
     def __enter__(self):
@@ -36,6 +26,12 @@ class HiddenPrints:
 
 
 def save_pandas_table(dir: str, df: pd.DataFrame):
+    """
+    Save a pandas table in a specific directory
+    :param dir: Directory to save in
+    :param df: Dataframe to save
+    :return:
+    """
     plt.clf()
     fig, ax = plt.subplots()
     fig.patch.set_visible(False)
@@ -51,6 +47,11 @@ def save_pandas_table(dir: str, df: pd.DataFrame):
 
 
 def compact_dict_print(dict: Dict[str, Any]):
+    """
+    Create a string defining a dictionary without any illegal characters
+    :param dict: The dictionary
+    :return:
+    """
     result = ''
     for index, key in enumerate(dict):
         result += f'{key}={dict[key]}{"," if index < len(dict) - 1 else ""}'.replace(' ', '_').replace(':', '-')
@@ -58,6 +59,12 @@ def compact_dict_print(dict: Dict[str, Any]):
 
 
 def select_features(df: pd.DataFrame, first_n_dims: int = -1):
+    """
+    Select only features from a pandas dataframe
+    :param df: The dataframe
+    :param first_n_dims: Number of dimensions
+    :return:
+    """
     if first_n_dims == -1:
         return df[[name for name in df.columns if 'feature' in name and 'proxy' not in name]]
     else:
@@ -65,6 +72,12 @@ def select_features(df: pd.DataFrame, first_n_dims: int = -1):
 
 
 def select_proxies(df: pd.DataFrame, first_n_dims: int = -1):
+    """
+    Generate a plot of coverage over first two features based on model outputs
+    :param df: The dataframe
+    :param first_n_dims: Number of dimensions
+    :return:
+    """
     if first_n_dims == -1:
         return df[[name for name in df.columns if 'proxy' in name]]
     else:
