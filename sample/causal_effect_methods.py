@@ -5,8 +5,12 @@ Currently the following Causal methods can be imported from this file:
     * CausalForest: implementation of causal forests using EconML
     * DragonNet: DragonNet implementation defined by https://github.com/claudiashi57/dragonnet
 """
+import math
+import numpy as np
 
 import tensorflow as tf
+import torch
+from typing import Dict
 
 from sample.other_methods.dragonnet.experiment.models import regression_loss, binary_classification_loss, \
     treatment_accuracy, track_epsilon
@@ -38,12 +42,15 @@ class CausalMethod(ABC):
         pass
 
     @abstractmethod
-    def train(self, x, y, w):
+    def train(self, x, y, w, x_test=None, y_test=None, t_test=None, ite_truth=None):
         """
         Method that trains the model with necessary data.
         :param x: List of feature vectors
         :param y: List of outcomes
         :param w: List of treatments
+        :param x_test: Test feature vectors to compute validation loss
+        :param y_test: Test outcomes to compute validation loss
+        :param t_test: Test treatments to compute validation loss
         """
         pass
 
@@ -97,30 +104,95 @@ class CausalMethod(ABC):
 
 class CausalEffectVariationalAutoencoder(CausalMethod):
 
-    def __init__(
-            self,
-            feature_dim,
-            outcome_dist="bernoulli",
-            latent_dim=20,
-            hidden_dim=200,
-            num_layers=3,
-            num_samples=100,):
+    def create_training_truth(self, outcome, main_effect, treatment_effect, treatment_propensity,
+                              y0, y1, noise, cate):
+        return outcome
+
+    def create_testing_truth(self, outcome, main_effect, treatment_effect, treatment_propensity, y0,
+                             y1, noise, cate):
+        return treatment_effect
+
+    def reset(self):
+        self.cevae = CEVAE(
+            self.config["feature_dim"], self.config["outcome_dist"],
+            self.config["latent_dim"], self.config["hidden_dim"],
+            self.config["num_layers"], self.config["num_samples"]
+        ).to(self.device)
+
+    def __str__(self):
+        return f'cevae_{self.id}'
+
+    def __init__(self,
+                 feature_dim, outcome_dist, latent_dim,
+                 hidden_dim, num_layers, num_samples, batch_size,
+                 id: int = 0, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+        if device == torch.device("cuda"):
+            torch.set_default_tensor_type(torch.cuda.FloatTensor)
+        else:
+            torch.set_default_tensor_type(torch.FloatTensor)
+        self.device = device
+        self.batch_size = batch_size
+        print(f"Using {self.device}")
         self.cevae = CEVAE(
             feature_dim, outcome_dist, latent_dim, hidden_dim, num_layers, num_samples
+        ).to(self.device).train(True)
+        self.config = dict(
+            feature_dim=feature_dim,
+            latent_dim=latent_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            num_samples=num_samples,
         )
+        self.id = id
 
-    def train(self, x_train, y_train, t_train):
-        self.cevae.fit(x_train, t_train, y_train)
+    def train(self, x_train, y_train, t_train, x_test=None, y_test=None, t_test=None, ite_truth=None,
+              num_epochs=100,
+              learning_rate=1e-3,
+              learning_rate_decay=0.1,
+              weight_decay=1e-4,
+              log_every=100) -> Dict[str, List[float]]:
+        x_train_tensor = torch.FloatTensor(x_train.values)
+        y_train_tensor = torch.FloatTensor(y_train.values)
+        t_train_tensor = torch.FloatTensor(t_train.values)
+        if x_test is not None:
+            print("Using validation loss")
+            x_test_tensor = torch.FloatTensor(x_test.values)
+            y_test_tensor = torch.FloatTensor(y_test.values)
+            t_test_tensor = torch.FloatTensor(t_test.values)
+        else:
+            x_test_tensor = None
+            y_test_tensor = None
+            t_test_tensor = None
+        data_num_features = x_train_tensor.size(-1)
+        model_num_dims = self.config['feature_dim']
+        assert data_num_features == model_num_dims, f"Expected data to have {model_num_dims} features, but found {data_num_features}"
+        print("X tensor size:", x_train_tensor.size())
+        print("y tensor size:", y_train_tensor.size())
+        print("t tensor size:", t_train_tensor.size())
+        self.cevae.train(True)
+        print("Training: ", self.cevae.training)
+        epoch_losses = self.cevae.fit(x_train_tensor.to(self.device), t_train_tensor.to(self.device), y_train_tensor.to(self.device),
+                                      x_test_tensor.to(self.device), t_test_tensor.to(self.device), y_test_tensor.to(self.device),
+                                      ite_truth,
+                                      num_epochs, self.batch_size, learning_rate,
+                                      learning_rate_decay, weight_decay, log_every)
+        print("Fitting model hash: ", hash(self))
+        return epoch_losses
 
     def estimate_causal_effect(self, x_test):
-        ite = self.cevae.ite(x_test)  # individual treatment effect
-        ate = ite.mean()  # average treatment effect
-        return ite, ate
+        x_tensor = torch.FloatTensor(x_test.values)
+        print("X test tensor size:", x_tensor.size())
+        self.cevae.train(False)
+        ite = self.cevae.ite(x_tensor.to(self.device)).cpu()  # individual treatment effect
+        print("ITE tensor size:", ite.size())
+        print("Estimating model hash: ", hash(self))
+        # ate = ite.mean()  # average treatment effect
+        return ite.numpy()
 
 
 class CausalForest(CausalMethod):
 
-    def __init__(self, number_of_trees, method_effect='auto', method_predict='auto', k=1, honest:bool = True, id: int = 0):
+    def __init__(self, number_of_trees, method_effect='auto', method_predict='auto', k=1, honest: bool = True, id: int = 0):
         self.forest = EconCausalForest(model_t=method_effect, model_y=method_predict, n_estimators=number_of_trees,
                                        min_samples_leaf=k, criterion='mse', random_state=42, honest=honest)
         self.id = id
@@ -131,7 +203,7 @@ class CausalForest(CausalMethod):
                                        min_samples_leaf=self.forest.min_samples_leaf, criterion=self.forest.criterion,
                                        random_state=self.forest.random_state, honest=self.forest.honest)
 
-    def train(self, x, y, w):
+    def train(self, x, y, w, x_test=None, y_test=None, t_test=None, ite_truth=None):
         self.forest.fit(Y=y,
                         T=w,
                         X=x,
@@ -149,6 +221,7 @@ class CausalForest(CausalMethod):
     def __str__(self):
         return f'causal_forest_{self.id}'
 
+
 class DragonNet(CausalMethod):
 
     # Not sure what reg_l2 is but I base it on DragonNet implementation
@@ -161,7 +234,7 @@ class DragonNet(CausalMethod):
     def reset(self):
         self.dragonnet = make_dragonnet(self.dimensions, self.reg_l2)
 
-    def train(self, x, y, w):
+    def train(self, x, y, w, x_test=None, y_test=None, t_test=None):
         metrics = [regression_loss, binary_classification_loss, treatment_accuracy, track_epsilon]
 
         self.dragonnet.compile(
@@ -212,5 +285,3 @@ class DragonNet(CausalMethod):
 
     def __str__(self):
         return f'dragonnet_{self.id}'
-
-

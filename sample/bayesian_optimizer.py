@@ -1,33 +1,50 @@
+from bayes_opt import BayesianOptimization
+
 from experiment import Experiment
 from session import Session
 from utils import *
 
 
-class Parameterizer:
+class BayesianOptimizer:
     """
     Tests an experiment with different inputs. All generated data important to this session is stored in the
     'sample/parameterization' directory.
     """
 
-    def __init__(self, parameter_function: Callable[[Dict[str, float]], Callable[[], Experiment]],
-                 params: List[Dict[str, float]], name: str = None):
+    # def __init__(self, parameter_function: Callable[[Dict[str, float]], Callable[[], Experiment]],
+    def __init__(self, parameter_function,
+                 param_bounds: Dict[str, Tuple[float, float]], name: str = None):
         """
         Initialization of the Parameterizer class
         :param parameter_function: Function that takes in a dictionary that contains the necessary parameters
         to test and returns a function that outputs a freshly defined experiment based on the parameters formed in the
          dictionary
-        :param params: List of dictionaries to apply on parameter_function
+        :param param_bounds: List of dictionaries to apply on parameter_function
         :param name: name for storing purposes
         """
         self.parameter_function = parameter_function
-        self.parameters = params
-        os.makedirs('parameterization', exist_ok=True)
-        self.directory = f'parameterization/params_{len([a for a in os.scandir("parameterization")]) if name is None else name}'
+        self.param_bounds = param_bounds
+        os.makedirs('bayesian_optimization', exist_ok=True)
+        self.directory = f'bayesian_optimization/params_{len([a for a in os.scandir("bayesian_optimization")]) if name is None else name}'
         os.makedirs(self.directory, exist_ok=True)
 
     def run(self, replications=1, save_data: bool = True, save_graphs: bool = True, show_graphs: bool = False):
+        optimizer = BayesianOptimization(
+            f=self.parameter_function,
+            pbounds=self.param_bounds,
+            verbose=2,
+            random_state=1,
+        )
+        optimizer.maximize(
+            init_points=5,
+            # init_points=1,
+            n_iter=25,
+            # n_iter=1,
+        )
+        print(optimizer.max)
+
         res = []
-        for param in self.parameters:
+        for param in self.param_bounds:
             print(f'Testing parameters {compact_dict_print(param)}')
             experiment_function = self.parameter_function(param)
             session = Session(experiment_function, f'session_{compact_dict_print(param)}')
@@ -40,7 +57,7 @@ class Parameterizer:
 
     def run_specific(self, test_set=pd.DataFrame, truth_set=pd.DataFrame, save_graphs: bool = True):
         res = []
-        for param in self.parameters:
+        for param in self.param_bounds:
             print(f'Testing parameters {compact_dict_print(param)}')
             experiment_function = self.parameter_function(param)
             session = Session(experiment_function, f'session_{compact_dict_print(param)}')
@@ -70,12 +87,13 @@ class Parameterizer:
                             plots[key][new_key] = []
                         plots[key][new_key].append(scores[score_name])
         for key in plots:
-            fig, ax = plt.subplots()
-            fig_path = self.directory + f'/graph_{key}.png'
-            ax.set_title(f'Varying parameter {key}')
-            ax.set_xlabel(key)
-            ax.set_ylabel('metrics')
+            plt.clf()
+            directory = self.directory + f'/graph_{key}.png'
+            plt.title(f'Changing of parameter {key}')
+            plt.xlabel(key)
+            plt.ylabel('metrics')
             for model in plots[key]:
-                ax.plot(x[key], plots[key][model], label=model)
-            ax.legend(bbox_to_anchor=(1.04, 0), loc="lower left", borderaxespad=0)
-            fig.savefig(fig_path, bbox_inches="tight")
+                plt.plot(x[key], plots[key][model], label=model)
+            plt.legend(bbox_to_anchor=(1.04,0), loc="lower left", borderaxespad=0)
+            plt.savefig(directory, bbox_inches="tight")
+            plt.clf()
