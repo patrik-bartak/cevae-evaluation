@@ -5,7 +5,7 @@ This repository is part of the B.Sc. thesis project of Patrik Barták for CSE300
 It accompanies the B.Sc. thesis freely available [here](https://repository.tudelft.nl/islandora/object/uuid%3A632eec99-2494-4ead-8455-d7ad5c1d18c9?collection=education), hosted in the TU Delft repository.
 
 ## How to run it
-To run the experiment you can run the [main script](evaluator/main.py). 
+To run the experiment you can run the [main script](main.py). 
 Afterwards you should be able to find the results in newly generated directories, most importantly in the parameterization directory.
 
 ## How to extend it
